@@ -178,6 +178,7 @@
     <ClCompile Include="src\myOpenGL\lib\VertexArray.cpp" />
     <ClCompile Include="src\myOpenGL\lib\VertexBuffer.cpp" />
     <ClCompile Include="src\glm\detail\glm.cpp" />
+    <ClCompile Include="src\utility\ObjParser.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="res\shaders\ComputeRayTracing.shader" />

@@ -10,9 +10,7 @@
 
 #include "OpenGLdebugFuncs.h"
 #include "camera/Camera.hpp"
-#ifndef
 #include "utility/ObjParser.h"
-#endif
 
 
 

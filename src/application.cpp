@@ -106,6 +106,17 @@ int main() {
 		loadMesh("src/models/knight.obj", mesh, num_triangles);
 		std::vector<BVH::Node> knight_BVH = BVH::construct(mesh, BVH::Heuristic::OBJECT_MEDIAN_SPLIT);
 		
+		std::cout << "----Traingle mesh-----" << std::endl;
+		for (const Triangle& triangle : mesh) {
+			std::cout << triangle << std::endl;
+		}
+
+		std::cout << "-------CUBE BVH-------" << std::endl;
+		for (const BVH::Node& node : knight_BVH) {
+			std::cout << node << std::endl;
+		}
+		std::cout << "----------------------" << std::endl;
+		
 		Renderer renderer(sceneData, mesh, knight_BVH);
 		
 		// Setup Dear ImGui context

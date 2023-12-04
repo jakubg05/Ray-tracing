@@ -81,6 +81,9 @@
     <ClCompile Include="src\myOpenGL\lib\ComputeTexture.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\utility\ObjParser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\glm\detail\func_common.inl">
