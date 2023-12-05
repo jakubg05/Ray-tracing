@@ -37,27 +37,7 @@
 #include "CameraHandler.hpp"
 #include "utility/DeltaTime.h"
 
-
 #include "scenes/Scene1.hpp"
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image/stb_image_write.h"
-
-void saveFrame(std::string name, int frame, ImVec2 viewportDimentions)
-{
-
-	stbi_flip_vertically_on_write(1);
-
-	std::vector<unsigned char> pixels(viewportDimentions.x * viewportDimentions.y * 4); // Assuming RGB format
-	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, &pixels[0]);
-	std::ostringstream oss;
-
-	oss << "Screenshots/" << name << frame << ".png";
-	std::string framePath = oss.str();
-	if (stbi_write_png(framePath.c_str(), viewportDimentions.x, viewportDimentions.y, 4, &pixels[0], 0) == 0) {
-		std::cout << "[ERROR] while saving texture " << framePath << std::endl;
-	}
-}
 
 const int SCREEN_WIDTH = 1920, SCREEN_HEIGHT = 1080;
 int main() {
@@ -104,7 +84,7 @@ int main() {
 		std::vector<Triangle> mesh;
 		unsigned int num_triangles;
 		loadMesh("src/models/knight.obj", mesh, num_triangles);
-		std::vector<BVH::Node> knight_BVH = BVH::construct(mesh, BVH::Heuristic::OBJECT_MEDIAN_SPLIT);
+		BVH::BVH_data knight_BVH = BVH::construct(mesh, BVH::Heuristic::OBJECT_MEDIAN_SPLIT);
 		
 		std::cout << "----Traingle mesh-----" << std::endl;
 		for (const Triangle& triangle : mesh) {
@@ -112,12 +92,12 @@ int main() {
 		}
 
 		std::cout << "-------CUBE BVH-------" << std::endl;
-		for (const BVH::Node& node : knight_BVH) {
-			std::cout << node << std::endl;
+		for (size_t i = 0; i < knight_BVH.size; i++) {
+			std::cout << knight_BVH.BVH[i] << std::endl;
 		}
 		std::cout << "----------------------" << std::endl;
 		
-		Renderer renderer(sceneData, mesh, knight_BVH);
+		Renderer renderer(sceneData, mesh, knight_BVH.BVH);
 		
 		// Setup Dear ImGui context
 		IMGUI_CHECKVERSION();

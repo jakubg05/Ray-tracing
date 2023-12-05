@@ -498,6 +498,7 @@
     <None Include="res\shaders\PostProcessing.shader" />
     <None Include="res\shaders\ComputeRayTracing.shader" />
     <None Include="res\shaders\ComputePostProcessing.shader" />
+    <None Include=".gitignore" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\myOpenGL\include\Renderer.h">
@@ -1389,9 +1390,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\myOpenGL\include\Texture.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\stb_image\stb_image_write.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\imgui\imconfig.h">

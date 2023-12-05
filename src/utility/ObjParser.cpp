@@ -276,7 +276,7 @@ BVH::Partition_output BVH::PartitionNode(const BVH::Node parent_node, std::vecto
     return output;
 }
 
-std::vector<BVH::Node> BVH::construct(const std::vector<Triangle>& triangles, const Heuristic heuristic) {
+BVH::BVH_data BVH::construct(const std::vector<Triangle>& triangles, const Heuristic heuristic) {
     std::vector<unsigned int> triangle_indices;
     for (unsigned int i = 0; i < triangles.size(); i++) {
         triangle_indices.push_back(i);
@@ -337,7 +337,16 @@ std::vector<BVH::Node> BVH::construct(const std::vector<Triangle>& triangles, co
 
     }
 
-    return BVH;
+    BVH::Node* BVH_array = new BVH::Node[BVH.size()];
+    for (size_t i = 0; i < BVH.size(); i++) {
+        BVH_array[i] = BVH[i];
+    }
+
+    BVH_data bvh_data;
+    bvh_data.BVH = BVH_array;
+    bvh_data.size = BVH.size();
+
+    return  bvh_data;
 }
 
 

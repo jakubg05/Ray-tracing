@@ -5,7 +5,7 @@
 struct SceneData;
 
 
-Renderer::Renderer(SceneData& scene, std::vector<Triangle>& mesh, std::vector<BVH::Node>& BVH_of_mesh)
+Renderer::Renderer(SceneData& scene, std::vector<Triangle>& mesh, BVH::Node* BVH_of_mesh)
 	: m_Scene(scene),
 
 	computeRtxShader(nullptr),
@@ -150,13 +150,13 @@ void Renderer::configure_BVHMesh_SSBO_block()
 {
 	GLCall(glGenBuffers(1, &BVH_SSBO_ID));
 	GLCall(glBindBuffer(GL_SHADER_STORAGE_BUFFER, BVH_SSBO_ID));
-	GLCall(glBufferData(GL_SHADER_STORAGE_BUFFER, BVH_of_mesh.size() * sizeof(BVH::Node), nullptr, GL_STATIC_DRAW));
+	GLCall(glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(BVH_of_mesh), nullptr, GL_STATIC_DRAW));
 	GLCall(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, BVH_SSBO_ID));
 }
 
 void Renderer::update_BVHMesh_SSBO_block()
 {
 	GLCall(glBindBuffer(GL_SHADER_STORAGE_BUFFER, BVH_SSBO_ID));
-	GLCall(glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, BVH_of_mesh.size() * sizeof(BVH::Node), BVH_of_mesh.data()))
+	GLCall(glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(BVH_of_mesh), BVH_of_mesh))
 	GLCall(glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0)); // unbind
 }

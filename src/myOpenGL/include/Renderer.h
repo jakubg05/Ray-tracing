@@ -70,7 +70,7 @@ private:
 
 
 public:
-	Renderer(SceneData& scene, std::vector<Triangle>& mesh, std::vector<BVH::Node>& BVH_of_mesh);
+	Renderer(SceneData& scene, std::vector<Triangle>& mesh, BVH::Node* BVH_of_mesh);
 	~Renderer();
 
 	void setViewportSize(glm::vec2 viewportSize);
@@ -93,5 +93,5 @@ private:
 	ComputeShader* computePostProcShader;
 
 	std::vector<Triangle> mesh;
-	std::vector<BVH::Node> BVH_of_mesh;
+	BVH::Node* BVH_of_mesh;
 };

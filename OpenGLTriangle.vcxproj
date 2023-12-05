@@ -181,6 +181,7 @@
     <ClCompile Include="src\utility\ObjParser.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".gitignore" />
     <None Include="res\shaders\ComputeRayTracing.shader" />
     <None Include="res\shaders\ComputePostProcessing.shader" />
     <None Include="res\shaders\RayTracing.shader" />
@@ -637,7 +638,6 @@
     <ClInclude Include="src\glm\vector_relational.hpp" />
     <ClInclude Include="src\scenes\Scene1.hpp" />
     <ClInclude Include="src\scenes\sceneTemplate.hpp" />
-    <ClInclude Include="src\stb_image\stb_image_write.h" />
     <ClInclude Include="src\utility\DeltaTime.h" />
     <ClInclude Include="src\utility\ObjParser.h" />
   </ItemGroup>

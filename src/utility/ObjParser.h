@@ -63,11 +63,11 @@ namespace BVH {
         SPATIAL_MIDDLE_SPLIT
     };
 
-
     const unsigned int AABB_primitives_limit = 4;
 
     class Node {
     public:
+        Node(){}
         Node(glm::vec3 minVec, glm::vec3 maxVec);
         friend std::ostream& operator<<(std::ostream& os, const Node& node);
 
@@ -79,6 +79,10 @@ namespace BVH {
         int child2_idx;
     };
 
+    struct BVH_data {
+        BVH::Node* BVH;
+        unsigned int size;
+    };
 
     glm::vec3 minCorner(const glm::vec3& current_min, const glm::vec3& vertex);
 
@@ -102,7 +106,7 @@ namespace BVH {
 
     BVH::Partition_output PartitionNode(const BVH::Node parent_node, std::vector<unsigned int>& triangle_indices, const std::vector<Triangle>& triangles, const Heuristic& heuristic);
 
-    std::vector<Node> construct(const std::vector<Triangle>& triangles, const Heuristic heuristic);
+    BVH::BVH_data construct(const std::vector<Triangle>& triangles, const Heuristic heuristic);
 }
 #endif // end of BVH_IMPLEMENTATION
 
