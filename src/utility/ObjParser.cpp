@@ -92,6 +92,10 @@ namespace BVH {
         os <<
             "{ \"minVec\": (" << node.minVec.x << ", " << node.minVec.y << ", " << node.minVec.z << ")," <<
             " \"maxVec\": (" << node.maxVec.x << ", " << node.maxVec.y << ", " << node.maxVec.z << ") },";
+        
+        // additional info - can be commented out
+        os << "child1_idx: " << node.child1_idx << " child2_idx: " << node.child2_idx << " leaf nodes: " 
+            << node.leaf_primitive_indices[0] << ", " << node.leaf_primitive_indices[1] << ", " << node.leaf_primitive_indices[2] << ", " << node.leaf_primitive_indices[3];
         return os;
     }
 }
@@ -127,7 +131,8 @@ void BVH::computeAABB(const std::vector<unsigned int>& triangle_indices, const s
 BVH::Node BVH::init(const std::vector<unsigned int>& triangle_indices, const std::vector<Triangle> triangle_mesh) {
     glm::vec3 minVec, maxVec;
     BVH::computeAABB(triangle_indices, triangle_mesh, minVec, maxVec);
-    return BVH::Node(minVec, maxVec);
+    BVH::Node root_node = BVH::Node(minVec, maxVec);
+    return root_node;
 }
 
 BVH::Partition_output BVH::PartitionNode(const BVH::Node parent_node, std::vector<unsigned int>& triangle_indices, const std::vector<Triangle>& triangles, const Heuristic& heuristic) {
@@ -276,7 +281,13 @@ BVH::Partition_output BVH::PartitionNode(const BVH::Node parent_node, std::vecto
     return output;
 }
 
-BVH::BVH_data BVH::construct(const std::vector<Triangle>& triangles, const Heuristic heuristic) {
+BVH::BVH_data BVH::construct(std::string path, const Heuristic heuristic) {
+    // loading mesh
+    std::vector<Triangle> triangles;
+    unsigned int num_triangles = 0;
+    loadMesh(path, triangles, num_triangles);
+
+
     std::vector<unsigned int> triangle_indices;
     for (unsigned int i = 0; i < triangles.size(); i++) {
         triangle_indices.push_back(i);
@@ -337,14 +348,19 @@ BVH::BVH_data BVH::construct(const std::vector<Triangle>& triangles, const Heuri
 
     }
 
+    // converting from std::vector to a c++ array
+    Triangle* TRIANGLES_array = new Triangle[num_triangles];
+    std::copy(triangles.begin(), triangles.end(), TRIANGLES_array);
+
     BVH::Node* BVH_array = new BVH::Node[BVH.size()];
-    for (size_t i = 0; i < BVH.size(); i++) {
-        BVH_array[i] = BVH[i];
-    }
+    std::copy(BVH.begin(), BVH.end(), BVH_array);
 
     BVH_data bvh_data;
+
     bvh_data.BVH = BVH_array;
-    bvh_data.size = BVH.size();
+    bvh_data.BVH_size = BVH.size();
+    bvh_data.TRIANGLES = TRIANGLES_array;
+    bvh_data.TRIANGLES_size = num_triangles;
 
     return  bvh_data;
 }

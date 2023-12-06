@@ -67,11 +67,11 @@ namespace BVH {
 
     class Node {
     public:
-        Node(){}
+        Node() {};
         Node(glm::vec3 minVec, glm::vec3 maxVec);
         friend std::ostream& operator<<(std::ostream& os, const Node& node);
 
-        unsigned int leaf_primitive_indices[AABB_primitives_limit];
+        int leaf_primitive_indices[AABB_primitives_limit];
 
         glm::vec3 minVec;
         int child1_idx;
@@ -81,7 +81,9 @@ namespace BVH {
 
     struct BVH_data {
         BVH::Node* BVH;
-        unsigned int size;
+        unsigned int BVH_size;
+        Triangle* TRIANGLES;
+        unsigned int TRIANGLES_size;
     };
 
     glm::vec3 minCorner(const glm::vec3& current_min, const glm::vec3& vertex);
@@ -106,7 +108,7 @@ namespace BVH {
 
     BVH::Partition_output PartitionNode(const BVH::Node parent_node, std::vector<unsigned int>& triangle_indices, const std::vector<Triangle>& triangles, const Heuristic& heuristic);
 
-    BVH::BVH_data construct(const std::vector<Triangle>& triangles, const Heuristic heuristic);
+    BVH::BVH_data construct(std::string path, const Heuristic heuristic);
 }
 #endif // end of BVH_IMPLEMENTATION
 

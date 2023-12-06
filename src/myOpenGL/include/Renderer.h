@@ -54,7 +54,7 @@ private:
 	void initComputePostProcStage();
 
 	// unifom buffer object setup and functions
-	unsigned int rtx_parameters_UBO_ID, sphereBuffer_UBO_ID, postProcessing_parameters_UBO_ID, BVH_SSBO_ID;
+	unsigned int rtx_parameters_UBO_ID, sphereBuffer_UBO_ID, postProcessing_parameters_UBO_ID, tris_SSBO_ID, BVH_SSBO_ID;
 
 	void configure_rtx_parameters_UBO_block();
 	void update_rtx_parameters_UBO_block();
@@ -65,12 +65,15 @@ private:
 	void configure_postProcessing_parameters_UBO_block();
 	void update_postProcessing_parameters_UBO_block();
 
-	void configure_BVHMesh_SSBO_block();
-	void update_BVHMesh_SSBO_block();
+	void configure_TrisMesh_SSBO_block();
+	void update_TrisMesh_SSBO_block();
+
+	void configure_BVH_SSBO_block();
+	void update_BVH_SSBO_block();
 
 
 public:
-	Renderer(SceneData& scene, std::vector<Triangle>& mesh, BVH::Node* BVH_of_mesh);
+	Renderer(SceneData& scene, BVH::BVH_data BVH_of_mesh);
 	~Renderer();
 
 	void setViewportSize(glm::vec2 viewportSize);
@@ -92,6 +95,5 @@ private:
 	ComputeTexture* computePostProcTexture;
 	ComputeShader* computePostProcShader;
 
-	std::vector<Triangle> mesh;
-	BVH::Node* BVH_of_mesh;
+	BVH::BVH_data BVH_of_mesh;
 };

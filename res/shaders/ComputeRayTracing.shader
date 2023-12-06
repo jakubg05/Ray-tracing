@@ -21,6 +21,18 @@ layout (std140, binding = 0) uniform uniformParameters {
     bool u_WasInput;                // offset 144 // alignment 4 // total 148 bytes
 };
 
+const uint AABB_primitives_limit = 4;
+
+struct BVHNode
+{
+    uint leaf_primitive_indices[AABB_primitives_limit];
+
+    vec3 minVec;
+    int child1_idx;
+    vec3 maxVec;
+    int child2_idx;
+};
+
 struct RaytracingMaterial
 {
     // Thanks to https://learnopengl.com/Advanced-OpenGL/Advanced-GLSL
@@ -35,11 +47,45 @@ struct Sphere {
 	RaytracingMaterial material;    // offset 0   // alignment 16 // size 32 // total 32 bytes
 	vec3 position;                  // offset 32  // alignment 16 // size 12 // total 44 bytes
 	float radius;                   // offset 44  // alignment 4  // size 4  // total 48 bytes
-};  
+};
+
+struct Triangle {
+    // vertices
+    vec3 v1;
+    float std140padding1;
+    vec3 v2;
+    float std140padding2;
+    vec3 v3;
+    float std140padding3;
+
+    // normals
+    vec3 NA;
+    float std140padding4;
+    vec3 NB;
+    float std140padding5;
+    vec3 NC;
+    float std140padding6;
+
+    vec3 centroid_vec;
+    float std140padding7;
+
+    RaytracingMaterial material; // already padded correctly
+};
+
 
 layout (std140, binding = 1) uniform sceneBuffer
 {
     Sphere u_Spheres[4];
+};
+
+layout (std140, binding = 3) buffer MESH_buffer
+{
+    Triangle knight_mesh[];
+};
+
+layout (std140, binding = 4) buffer BVH_buffer
+{
+    BVHNode knight_BVH[];
 };
 
 struct Ray
@@ -292,4 +338,6 @@ void main()
     float weight = 1.0f / (u_numAccumulatedFrames + 1);
     vec3 outputColor = accumulatedColor.rgb * (1 - weight) + tracingResult * weight;
     imageStore(rayTracingTexture, texelCoords, vec4(outputColor, 1.0f));
+    //imageStore(rayTracingTexture, texelCoords, vec4(knight_BVH[5].minVec.x == -0.609701, 0, 0, 1.0f));
+    //imageStore(rayTracingTexture, texelCoords, vec4(0, knight_mesh[3].v2.y == 0.263945, 0, 1.0f));
 };

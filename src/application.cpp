@@ -81,23 +81,20 @@ int main() {
 
 		SceneData sceneData = getSceneData();
 		
-		std::vector<Triangle> mesh;
-		unsigned int num_triangles;
-		loadMesh("src/models/knight.obj", mesh, num_triangles);
-		BVH::BVH_data knight_BVH = BVH::construct(mesh, BVH::Heuristic::OBJECT_MEDIAN_SPLIT);
-		
+		BVH::BVH_data knight_BVH = BVH::construct("src/models/knight.obj", BVH::Heuristic::OBJECT_MEDIAN_SPLIT);
+
 		std::cout << "----Traingle mesh-----" << std::endl;
-		for (const Triangle& triangle : mesh) {
-			std::cout << triangle << std::endl;
+		for (size_t i = 0; i < knight_BVH.TRIANGLES_size; i++) {
+			std::cout << knight_BVH.TRIANGLES[i] << std::endl;
 		}
 
 		std::cout << "-------CUBE BVH-------" << std::endl;
-		for (size_t i = 0; i < knight_BVH.size; i++) {
+		for (size_t i = 0; i < knight_BVH.BVH_size; i++) {
 			std::cout << knight_BVH.BVH[i] << std::endl;
 		}
 		std::cout << "----------------------" << std::endl;
 		
-		Renderer renderer(sceneData, mesh, knight_BVH.BVH);
+		Renderer renderer(sceneData, knight_BVH);
 		
 		// Setup Dear ImGui context
 		IMGUI_CHECKVERSION();
