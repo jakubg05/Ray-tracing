@@ -1,42 +1,29 @@
 #version 460 core
 
-layout(local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
+/*
+This is a compute shader responsible for the Ray Tracing
+- in the first part there are defined struct used throughout the shader
+- most of these struct MUST be exactly the same as in the c++ code when being sent by the CPU
+*/
 
-layout(rgba32f, binding = 0) uniform image2D rayTracingTexture;
 
-layout (std140, binding = 0) uniform uniformParameters {
-    // offsets 
-    uint u_numAccumulatedFrames;    // offset 0  // alignment 4 // total 4 bytes
-    uint u_raysPerPixel;            // offset 4  // alignment 4 // total 8 bytes
-    uint u_bouncesPerRay;           // offset 8  // alignment 4 // total 12 bytes
-    float u_FocalLength;            // offset 12 // alignment 4 // total 16 bytes
-
-    vec3 u_skyboxGroundColor;       // offset 16 // alignment 16 // total 32 bytes
-    vec3 u_skyboxHorizonColor;      // offset 32 // alignment 16 // total 48 bytes
-    vec3 u_skyboxZenithColor;       // offset 48 // alignment 16 // total 64 bytes                            
-    vec3 u_CameraPos;               // offset 64 // alignment 16 // total 80 bytes
-
-    mat4 u_ModelMatrix;             // offset 80 // alignment 16 // total 144 bytes
-
-    bool u_WasInput;                // offset 144 // alignment 4 // total 148 bytes
-};
-
+// CONSTANTS
 const uint AABB_primitives_limit = 4;
+
+// struct alignments: Thanks to https://learnopengl.com/Advanced-OpenGL/Advanced-GLSL
 
 struct BVHNode
 {
-    uint leaf_primitive_indices[AABB_primitives_limit];
+    uint leaf_primitive_indices[AABB_primitives_limit];     // offset 0 // alignment 4 // total 4 bytes
 
-    vec3 minVec;
-    int child1_idx;
-    vec3 maxVec;
-    int child2_idx;
+    vec3 minVec;        // offset 4  // alignment 16 // total 20 bytes
+    int child1_idx;     // offset 20 // alignment 4  // total 24 bytes
+    vec3 maxVec;        // offset 24 // alignment 16 // total 40 bytes
+    int child2_idx;     // offset 40 // alignment 4  // total 44 bytes
 };
 
 struct RaytracingMaterial
 {
-    // Thanks to https://learnopengl.com/Advanced-OpenGL/Advanced-GLSL
-
     vec3 color;                 // offset 0   // alignment 16 // size 12 // total 12 bytes
     float emissionStrength;     // offset 12  // alignment 4  // size 4  // total 16 bytes
     vec3 emissionColor;         // offset 16  // alignment 16 // size 12 // total 28 bytes
@@ -49,45 +36,31 @@ struct Sphere {
 	float radius;                   // offset 44  // alignment 4  // size 4  // total 48 bytes
 };
 
-struct Triangle {
+struct Triangle
+{
     // vertices
-    vec3 v1;
-    float std140padding1;
-    vec3 v2;
-    float std140padding2;
-    vec3 v3;
-    float std140padding3;
+    vec3 v1;                    // offset 0   // alignment 16 // size 12 // total 16 bytes 
+    float std140padding1;       // offset 12  // alignment 4  // size 4  // total 16 bytes
+    vec3 v2;                    // offset 16  // alignment 16 // size 12 // total 32 bytes 
+    float std140padding2;       // offset 28  // alignment 4  // size 4  // total 32 bytes
+    vec3 v3;                    // offset 32  // alignment 16 // size 12 // total 48 bytes 
+    float std140padding3;       // offset 44  // alignment 4  // size 4  // total 48 bytes
+    
+    //normals
+    vec3 NA;                    // offset 48  // alignment 16 // size 12 // total 64 bytes 
+    float std140padding4;       // offset 60  // alignment 4  // size 4  // total 64 bytes
+    vec3 NB;                    // offset 64  // alignment 16 // size 12 // total 80 bytes 
+    float std140padding5;       // offset 76  // alignment 4  // size 4  // total 80 bytes
+    vec3 NC;                    // offset 80  // alignment 16 // size 12 // total 96 bytes 
+    float std140padding6;       // offset 92  // alignment 4  // size 4  // total 96 bytes
+    
+    vec3 centroid_vec;          // offset 96  // alignment 16 // size 12 // total 112 bytes
+    float std140padding7;       // offset 108 // alignment 4  // size 4  // total 112 bytes
 
-    // normals
-    vec3 NA;
-    float std140padding4;
-    vec3 NB;
-    float std140padding5;
-    vec3 NC;
-    float std140padding6;
-
-    vec3 centroid_vec;
-    float std140padding7;
-
-    RaytracingMaterial material; // already padded correctly
+    RaytracingMaterial material;    // offset 112 // alignment 16 // size 32 bytes // total 148 bytes
 };
 
-
-layout (std140, binding = 1) uniform sceneBuffer
-{
-    Sphere u_Spheres[4];
-};
-
-layout (std140, binding = 3) buffer MESH_buffer
-{
-    Triangle knight_mesh[];
-};
-
-layout (std140, binding = 4) buffer BVH_buffer
-{
-    BVHNode knight_BVH[];
-};
-
+// These actually don't need to be padded (not sent by the CPU)
 struct Ray
 {
     vec3 origin;
@@ -103,12 +76,50 @@ struct HitInfo
     RaytracingMaterial material;
 };
 
+// work group sizes
+layout (local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
+
+layout (rgba32f, binding = 0) uniform image2D rayTracingTexture;
+
+//UBOs
+layout (std140, binding = 0) uniform uniformParameters {
+    uint u_numAccumulatedFrames;    // offset 0  // alignment 4 // total 4 bytes
+    uint u_raysPerPixel;            // offset 4  // alignment 4 // total 8 bytes
+    uint u_bouncesPerRay;           // offset 8  // alignment 4 // total 12 bytes
+    float u_FocalLength;            // offset 12 // alignment 4 // total 16 bytes
+
+    vec3 u_skyboxGroundColor;       // offset 16 // alignment 16 // total 32 bytes
+    vec3 u_skyboxHorizonColor;      // offset 32 // alignment 16 // total 48 bytes
+    vec3 u_skyboxZenithColor;       // offset 48 // alignment 16 // total 64 bytes                            
+    vec3 u_CameraPos;               // offset 64 // alignment 16 // total 80 bytes
+
+    mat4 u_ModelMatrix;             // offset 80 // alignment 16 // total 144 bytes
+
+    bool u_WasInput;                // offset 144 // alignment 4 // total 148 bytes
+};
+
+layout (std140, binding = 1) uniform sceneBuffer
+{
+    Sphere u_Spheres[4];
+};
+
+// SSBOs
+layout (std140, binding = 3) buffer MESH_buffer
+{
+    Triangle knight_mesh[];
+};
+
+layout (std140, binding = 4) buffer BVH_buffer
+{
+    BVHNode knight_BVH[];
+};
+
+
 uint getCurrentState(ivec2 texelCoords, int screenWidth)
 {
     uint pixelIndex = (uint(texelCoords.y) * uint(screenWidth)) + uint(texelCoords.x);
     return pixelIndex + u_numAccumulatedFrames * 745621; // new state every frame
 }
-
 
 float RandomValue(inout uint state)
 {
@@ -163,8 +174,43 @@ vec3 GainSkyboxLight(Ray ray)
     return skyGradient;
 }
 
+bool RayAABBIntersection(vec3 rayOrigin, vec3 inv_rayDir, vec3 boxMin, vec3 boxMax)
+{
+    float tMin = 0.0; // Start at zero to ignore intersections behind the origin
+    float tMax = 1.0e20; // Large positive value
 
+    for (int i = 0; i < 3; ++i)
+    {
+        if (abs(inv_rayDir[i]) < 1.0e-8)
+        {
+            // Ray is parallel to the slab. No hit if origin not within slab
+            if (rayOrigin[i] < boxMin[i] || rayOrigin[i] > boxMax[i]) 
+                return false;
+        }
+        else
+        {
+            float t1 = (boxMin[i] - rayOrigin[i]) * inv_rayDir[i];
+            float t2 = (boxMax[i] - rayOrigin[i]) * inv_rayDir[i];
 
+            // Make t1 be intersection with near plane, t2 with far plane
+            if (t1 > t2)
+            {
+                float temp = t1;
+                t1 = t2;
+                t2 = temp;
+            }
+
+            // Compute the intersection of slab intersection intervals
+            tMin = max(tMin, t1);
+            tMax = min(tMax, t2);
+
+            // Exit with no collision as soon as slab intersection becomes empty or if intersection is behind the ray's origin
+            if (tMin > tMax || tMax < 0.0) 
+                return false;
+        }
+    }
+    return tMin <= tMax;
+}
 
 // Sebastian Lague - https://youtu.be/Qz0KTGYJtUk?t=321
 HitInfo RaySphereIntersection(Ray ray, vec3 spherePosition, float sphereRadius)
@@ -304,40 +350,33 @@ vec3 TraceRay(Ray ray, inout uint state)
 
 void main()
 {
-    
     ivec2 texelCoords = ivec2(gl_GlobalInvocationID.xy);
     ivec2 dims = imageSize(rayTracingTexture);
+    float x = (float(texelCoords.x * 2 - dims.x) / dims.x); // transforms to [-1.0, 1.0]
+    float y = (float(texelCoords.y * 2 - dims.y) / dims.x); // deviding by x to keep the ratio
+    
     uint state = getCurrentState(texelCoords, dims.x);
     
     Ray ray;
-    float x = (float(texelCoords.x * 2 - dims.x) / dims.x); // transforms to [-1.0, 1.0]
-    float y = (float(texelCoords.y * 2 - dims.y) / dims.x); // deviding by x to keep the ratio
-    ray.dir = normalize(vec3(x, y, u_FocalLength)); // deault direction
+    ray.dir = normalize(vec3(x, y, u_FocalLength));
     ray.dir = (u_ModelMatrix * vec4(ray.dir, 1.0f)).rgb; // apply the rotation transformation of the camera
-    ray.origin = u_CameraPos.rgb;
+    ray.origin = u_CameraPos.xyz;
     
+    // The actual tracing of the ray
     vec3 tracingResult = vec3(0.0);
     for (int i = 0; i < u_raysPerPixel; i++)
-    {   // Tracing Rays
+    {
         tracingResult += TraceRay(ray, state);
     }
-    //vec4 pixelColor = vec4(tracingResult / u_raysPerPixel, 1.0f);
-    
-    //if (!u_WasInput)
-    //{
-    //    vec4 accumulatedColor = imageLoad(rayTracingTexture, texelCoords);
-    //    imageStore(rayTracingTexture, texelCoords, pixelColor + accumulatedColor); // accumulating the previous and current frame
-    //}
-    //else
-    //{
-    //    imageStore(rayTracingTexture, texelCoords, pixelColor); // only outputing the current render
-    //}
+
+    // averaging the current frame accumulated pixel color
     tracingResult = tracingResult / u_raysPerPixel;
     vec4 accumulatedColor = imageLoad(rayTracingTexture, texelCoords);
     
+    // averaging the previous & current frame pixel color
     float weight = 1.0f / (u_numAccumulatedFrames + 1);
     vec3 outputColor = accumulatedColor.rgb * (1 - weight) + tracingResult * weight;
+    
+    // setting the texel coords (pixel color texture coordinates)
     imageStore(rayTracingTexture, texelCoords, vec4(outputColor, 1.0f));
-    //imageStore(rayTracingTexture, texelCoords, vec4(knight_BVH[5].minVec.x == -0.609701, 0, 0, 1.0f));
-    //imageStore(rayTracingTexture, texelCoords, vec4(0, knight_mesh[3].v2.y == 0.263945, 0, 1.0f));
 };
