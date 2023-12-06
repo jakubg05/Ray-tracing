@@ -8,13 +8,71 @@ This is a compute shader responsible for the Ray Tracing
 
 
 // CONSTANTS
-const uint AABB_primitives_limit = 4;
+#define AABB_primitives_limit 4
+#define MAX_STACK_SIZE 15
+
+// work group sizes
+#define LOCAL_GROUP_X 8
+#define LOCAL_GROUP_Y 4
+#define LOCAL_GROUP_Z 1
+
+#define NUM_SPHERES 4
+
+#define PI 3.1415926
+#define EPSILON 1.0e-10 // Small value to avoid division by zero
 
 // struct alignments: Thanks to https://learnopengl.com/Advanced-OpenGL/Advanced-GLSL
 
+//////////// STACK IMPLEMENTATION ////////////
+struct Stack
+{
+    int elements[MAX_STACK_SIZE];
+    int top;
+};
+
+void stack_init(out Stack s)
+{
+    s.top = -1;
+}
+
+bool stack_push(inout Stack s, int element)
+{
+    if (s.top >= MAX_STACK_SIZE - 1)
+    {
+        // Stack overflow
+        return false;
+    }
+    s.top++;
+    s.elements[s.top] = element;
+    return true;
+}
+
+bool stack_pop(inout Stack s, out int element)
+{
+    if (s.top < 0)
+    {
+        // Stack underflow
+        return false;
+    }
+    element = s.elements[s.top];
+    s.top--;
+    return true;
+}
+
+bool stack_empty(in Stack s)
+{
+    if (s.top < 0)
+    {
+        return true;
+    }
+    return false;
+}
+//////////// END OF STACK IMPLEMENTATION ////////////
+
+
 struct BVHNode
 {
-    uint leaf_primitive_indices[AABB_primitives_limit];     // offset 0 // alignment 4 // total 4 bytes
+    int leaf_primitive_indices[AABB_primitives_limit];     // offset 0 // alignment 4 // total 4 bytes
 
     vec3 minVec;        // offset 4  // alignment 16 // total 20 bytes
     int child1_idx;     // offset 20 // alignment 4  // total 24 bytes
@@ -77,15 +135,17 @@ struct HitInfo
 };
 
 // work group sizes
-layout (local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
+layout (local_size_x = LOCAL_GROUP_X, 
+        local_size_y = LOCAL_GROUP_Y, 
+        local_size_z = LOCAL_GROUP_Z) in;
 
 layout (rgba32f, binding = 0) uniform image2D rayTracingTexture;
 
 //UBOs
 layout (std140, binding = 0) uniform uniformParameters {
     uint u_numAccumulatedFrames;    // offset 0  // alignment 4 // total 4 bytes
-    uint u_raysPerPixel;            // offset 4  // alignment 4 // total 8 bytes
-    uint u_bouncesPerRay;           // offset 8  // alignment 4 // total 12 bytes
+    uint RAYS_PER_PIXEL_COUNT;      // offset 4  // alignment 4 // total 8 bytes
+    uint RAY_BOUNCE_COUNT;          // offset 8  // alignment 4 // total 12 bytes
     float u_FocalLength;            // offset 12 // alignment 4 // total 16 bytes
 
     vec3 u_skyboxGroundColor;       // offset 16 // alignment 16 // total 32 bytes
@@ -100,18 +160,18 @@ layout (std140, binding = 0) uniform uniformParameters {
 
 layout (std140, binding = 1) uniform sceneBuffer
 {
-    Sphere u_Spheres[4];
+    Sphere u_Spheres[NUM_SPHERES];
 };
 
 // SSBOs
 layout (std140, binding = 3) buffer MESH_buffer
 {
-    Triangle knight_mesh[];
+    Triangle MESH[];
 };
 
 layout (std140, binding = 4) buffer BVH_buffer
 {
-    BVHNode knight_BVH[];
+    BVHNode BVH[];
 };
 
 
@@ -134,7 +194,7 @@ float RandomValueNormalDistribution(inout uint state)
 {
     // Thanks to https://stackoverflow.com/a/6178290
     // And Sebastian Lague
-    float theta = 2 * 3.1415926 * RandomValue(state);
+    float theta = 2 * PI * RandomValue(state);
     float rho = sqrt(-2 * log(RandomValue(state)));
     return rho * cos(theta);
 }
@@ -174,23 +234,24 @@ vec3 GainSkyboxLight(Ray ray)
     return skyGradient;
 }
 
-bool RayAABBIntersection(vec3 rayOrigin, vec3 inv_rayDir, vec3 boxMin, vec3 boxMax)
+bool RayAABBIntersection(Ray ray, vec3 minVec, vec3 maxVec)
 {
     float tMin = 0.0; // Start at zero to ignore intersections behind the origin
     float tMax = 1.0e20; // Large positive value
 
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < 3; ++i) // 3 dimentions
     {
-        if (abs(inv_rayDir[i]) < 1.0e-8)
+        if (abs(ray.dir[i]) < 1.0e-8)
         {
             // Ray is parallel to the slab. No hit if origin not within slab
-            if (rayOrigin[i] < boxMin[i] || rayOrigin[i] > boxMax[i]) 
+            if (ray.origin[i] < minVec[i] || ray.origin[i] > maxVec[i]) 
                 return false;
         }
         else
         {
-            float t1 = (boxMin[i] - rayOrigin[i]) * inv_rayDir[i];
-            float t2 = (boxMax[i] - rayOrigin[i]) * inv_rayDir[i];
+            float inverse_rayDir_component = 1 / ray.dir[i];
+            float t1 = (minVec[i] - ray.origin[i]) * inverse_rayDir_component;
+            float t2 = (maxVec[i] - ray.origin[i]) * inverse_rayDir_component;
 
             // Make t1 be intersection with near plane, t2 with far plane
             if (t1 > t2)
@@ -243,53 +304,110 @@ HitInfo RaySphereIntersection(Ray ray, vec3 spherePosition, float sphereRadius)
 }
 
 // https://stackoverflow.com/questions/42740765/intersection-between-line-and-triangle-in-3d/42752998#42752998
-//HitInfo RayTriangleIntersection(Ray ray, Triangle tri)
-//{
-//    vec3 E1 = tri.B - tri.A;
-//    vec3 E2 = tri.C - tri.A;
-//    vec3 triNormal = cross(E1, E2);
-//
-//    float determinant = -dot(ray.dir, triNormal);
-//
-//    // Early exit if the ray and triangle are nearly parallel
-//    if (determinant < 1E-6)
-//    {
-//        HitInfo hitInfo;
-//        hitInfo.didCollide = false;
-//        return hitInfo;
-//    }
-//
-//    float invdet = 1.0 / determinant;
-//    vec3 AO = ray.origin - tri.A;
-//    vec3 DAO = cross(AO, ray.dir);
-//
-//    float t = dot(AO, triNormal) * invdet;
-//    float u = dot(E2, DAO) * invdet;
-//    float v = -dot(E1, DAO) * invdet;
-//    float w = 1 - u - v;
-//
-//    // Back-face culling (assuming triangles are consistently oriented)
-//    if (t < 0 || u < 0 || v < 0 || w < 0)
-//    {
-//        HitInfo hitInfo;
-//        hitInfo.didCollide = false;
-//        return hitInfo;
-//    }
-//
-//    HitInfo hitInfo;
-//    hitInfo.didCollide = true;
-//    hitInfo.hitPoint = ray.origin + ray.dir * t;
-//    hitInfo.normal = normalize(tri.NA * w + tri.NB * u + tri.NC * v);
-//    hitInfo.dst = t;
-//    return hitInfo;
-//}
+HitInfo RayTriangleIntersection(Ray ray, Triangle tri)
+{
+    vec3 E1 = tri.v2 - tri.v1;
+    vec3 E2 = tri.v3 - tri.v1;
+    vec3 triNormal = cross(E1, E2);
+
+    float determinant = -dot(ray.dir, triNormal);
+
+    // Early exit if the ray and triangle are nearly parallel
+    if (determinant < 1E-6)
+    {
+        HitInfo hitInfo;
+        hitInfo.didCollide = false;
+        return hitInfo;
+    }
+
+    float invdet = 1.0 / determinant;
+    vec3 AO = ray.origin - tri.v1;
+    vec3 DAO = cross(AO, ray.dir);
+
+    float t = dot(AO, triNormal) * invdet;
+    float u = dot(E2, DAO) * invdet;
+    float v = -dot(E1, DAO) * invdet;
+    float w = 1 - u - v;
+
+    // Back-face culling (assuming triangles are consistently oriented)
+    if (t < 0 || u < 0 || v < 0 || w < 0)
+    {
+        HitInfo hitInfo;
+        hitInfo.didCollide = false;
+        return hitInfo;
+    }
+
+    HitInfo hitInfo;
+    hitInfo.didCollide = true;
+    hitInfo.hitPoint = ray.origin + ray.dir * t;
+    hitInfo.normal = normalize(tri.NA * w + tri.NB * u + tri.NC * v);
+    hitInfo.dst = t;
+    return hitInfo;
+}
+
+void BVH_traverse(Ray ray, inout HitInfo closestHit)
+{
+    Stack stack;
+    stack_init(stack);
+    stack_push(stack, 0); // id of the root node
+    
+    while (!stack_empty(stack))
+    {
+        int current_node_idx;
+        stack_pop(stack, current_node_idx); // updates the current_node_idx
+        BVHNode current_node = BVH[current_node_idx];
+        if (RayAABBIntersection(ray, current_node.minVec, current_node.maxVec))
+        {
+            if (current_node.child1_idx == -1 && current_node.child2_idx == -1)
+            {
+                for (int i = 0; i < AABB_primitives_limit; i++)
+                {
+                    int triangle_idx = current_node.leaf_primitive_indices[i];
+                    
+                    if (triangle_idx == -1)
+                    {
+                        break;
+                    }
+                    
+                    Triangle tri = MESH[triangle_idx];
+                    if (triangle_idx == 0)
+                    {
+                        tri.material.color = vec3(0.0f, 1.0f, 0.0f);
+                    }
+                    else
+                    {
+                        tri.material.color = vec3(1.0f, 0.0f, 0.0f);
+                    }
+                    // for now set the material here
+                    
+                    tri.material.emissionColor = vec3(0.0f, 0.0f, 0.0f);
+                    tri.material.emissionStrength = 0.0f;
+                    
+                    HitInfo triHitInfo = RayTriangleIntersection(ray, tri);
+                    
+                    if (triHitInfo.didCollide && triHitInfo.dst < closestHit.dst)
+                    {
+                        closestHit = triHitInfo;
+                        closestHit.material = tri.material;
+                    }
+                }
+
+            }
+            else
+            {
+                stack_push(stack, current_node.child1_idx);
+                stack_push(stack, current_node.child2_idx);
+            }
+        }
+    }
+}
 
 HitInfo CheckRayCollision(Ray ray)
 {
     HitInfo closestHit;
     closestHit.didCollide = false;
     closestHit.dst = 1.0 / 0.0; // infinity
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < NUM_SPHERES; i++)
     {
         Sphere sphere = u_Spheres[i];
         HitInfo hitInfo = RaySphereIntersection(ray, sphere.position, sphere.radius);
@@ -300,21 +418,7 @@ HitInfo CheckRayCollision(Ray ray)
         }
     }    
     
-    //for (int i = 0; i < 456; i++)
-    //{
-    //    Triangle tri = u_gemMesh[i];
-    //    tri.material.color = vec3(214.0f / 255.0f, 182.0f / 255.0f, 105.0f / 255.0f);
-    //    tri.material.emissionColor = vec3(0.0f, 0.0f, 0.0f);
-    //    tri.material.emissionStrength = 0.0f;
-    //    
-    //    HitInfo triHitInfo = RayTriangleIntersection(ray, tri);
-    //      
-    //    if (triHitInfo.didCollide && triHitInfo.dst < closestHit.dst)
-    //    {
-    //        closestHit = triHitInfo;
-    //        closestHit.material = tri.material;
-    //    }
-    //}
+    //BVH_traverse(ray, closestHit); // traversing all the triangles
     
     return closestHit;
 }
@@ -324,7 +428,7 @@ vec3 TraceRay(Ray ray, inout uint state)
     vec3 rayColor = vec3(1.0);
     vec3 incomingLight = vec3(0.0);
     
-    for (int i = 0; i <= u_bouncesPerRay; i++)
+    for (int i = 0; i <= RAY_BOUNCE_COUNT; i++)
     {
         HitInfo hitInfo = CheckRayCollision(ray);
         if (hitInfo.didCollide)
@@ -364,13 +468,13 @@ void main()
     
     // The actual tracing of the ray
     vec3 tracingResult = vec3(0.0);
-    for (int i = 0; i < u_raysPerPixel; i++)
+    for (int i = 0; i < RAYS_PER_PIXEL_COUNT; i++)
     {
         tracingResult += TraceRay(ray, state);
     }
 
     // averaging the current frame accumulated pixel color
-    tracingResult = tracingResult / u_raysPerPixel;
+    tracingResult = tracingResult / RAYS_PER_PIXEL_COUNT;
     vec4 accumulatedColor = imageLoad(rayTracingTexture, texelCoords);
     
     // averaging the previous & current frame pixel color
